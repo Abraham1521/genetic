@@ -1,0 +1,108 @@
+from numpy.random import rand, randint
+import numpy as np
+import matplotlib.pyplot as plt
+
+def objective_function(I):
+    x=I[0]
+    y=I[1]
+    Objective_min=x**2+3*y**2-x*y+3*x+2 #funcion con dos variables (x,y)
+    Objective_max=1/(1+Objective_min) #el MIN se convierte en un MAX, la superficie cambia
+    return Objective_max
+
+
+#Parametros de algoritmo genetico binario
+bounds=[[-2,0],[-2,0]] #donde se busca
+iteration=200
+bits=20 #de cada variable
+pop_size=50 #poblacion
+crossover_rate=0.7
+mutation_rate=0.3
+
+#Codigo, ya se utiliza la población codificada
+def crossover(pop,crossover_rate):
+    offspring=list() #nuevo cromosoma, formado por otros dos, se hace una lista para llenar
+    for i in range(int(len(pop)/2)): #int es para que de un entero, len() devuelve el numero de caracteres de una cadena de entrada, basicamente poblacion /2
+        p1=pop[2*i-1].copy() #padre 1, ceros y unos
+        p2=pop[2*i].copy() #padre 2, ceros y unos
+        if rand()<crossover_rate: #para asegurar que el alaeatorio entre cero y uno es menor que la tasa del crossover
+            cp=randint(1,len(p1)-1,size=2) #Me da dos puntos de corte aleatorios entre 1 y la cantidad de caracteres del padre 1, [ , ]
+            while cp[0]==cp[1]:
+                cp=randint(1,len(p1)-1,size=2) #Dos puntos aleatorios de corte [ , ]
+            cp=sorted(cp) #sorted() me da una nueva lista ordenada de 2 [menor, mayor]
+            c1=p1[:cp[0]]+p2[cp[0]:cp[1]]+p1[cp[1]:]
+            c2=p2[:cp[0]]+p1[cp[0]:cp[1]]+p2[cp[1]:]
+            offspring.append(c1) #append agrega elementos a mi lista original, en este caso c1
+            offspring.append(c2)
+        else:
+            offspring.append(p1)
+            offspring.append(p2)
+    return offspring #mi total de individuos de mi poblacion 
+
+def mutation(pop,mutation_rate):
+    offspring=list() #creo lista para llenar con mis offsprings
+    for i in range(int(len(pop))): #numero de individuos de mi poblacion
+        p1=pop[i].copy() #padre
+        if rand()<mutation_rate: #para asegurar que el aleatorio entre 0 y 1 es menor que la tasa de mutación
+            cp=randint(0,len(p1)) #random gene, entre 0 y el numero de caracteres de cromosoma
+            c1=p1
+            if c1[cp]==1: #c1[cp] entre 0 y 1
+                c1[cp]=0 #flip, si se cumple con la condicion de la probabilidad entonces cambio mi 1 a 0
+            else: #si no, el anterior 0 se hace 1
+                c1[cp]=1
+            offspring.append(c1) #se agrega al offspring
+        else:
+            offspring.append(p1)
+    return offspring #mi total de poblacion ya con mutacion
+
+#Selección de la rueda de la ruleta
+def selection(pop,fitness,pop_size):
+    next_generation=list() #se crea lista para la siguiente generacion
+    elite=np.argmax(fitness) #argmax me devuelve el indice del valor maximo de una matriz, ahora cada cromosoma tiene en vez de 0 y 1 diferentes valores
+    next_generation.append(pop[elite]) #se mantiene el mejor, agregando los valores de indice de valor max
+    P=[f/sum(fitness) for f in fitness] #Probabilidad de seleccion
+    index=list(range(int(len(pop)))) #del 0 al 99, se tiene dos veces el numero de individuos
+    index_selected=np.random.choice(index,size=pop_size-1,replace=False,p=P) #al azar números del 0 al 99, cantidad: total de individuos-1
+    s=0
+    for j in range(pop_size-1):
+        next_generation.append(pop[index_selected[s]]) #se agregan a la nueva generacion los valores aleatorios obtenidos anteriormente, 
+        s+=1
+    return next_generation
+
+def decoding(bounds,bits,chromosome):
+    real_chromosome=list() #lista para agregar a los valores
+    for i in range(len(bounds)): #2
+        st,en=i*bits,(i*bits)+bits #extraer el cromosoma
+        sub=chromosome[st:en] #ya con los bits indicados al inicio
+        chars=''.join([str(s) for s in sub]) #Convertir a caracteres, ya asi 010101010101 (ejemplo)
+        integer=int(chars,2) #Convertir a entero
+        real_value=bounds[i][0]+(integer/2**bits)*(bounds[i][1]-bounds[i][0]) #valor real
+        real_chromosome.append(real_value) #agrego lo de valor real
+    return real_chromosome
+
+#Poblacion inicial, codificación
+pop=[randint(0,2,bits*len(bounds)).tolist() for _ in range(pop_size)] #los bounds son 2 (debido a que son para x y y) por el numero de bits me da cuantos digitos tendran mis cromosomas
+#el randint() me da numeros aleatorios en este caso que sean 0 o 1 y la cantidad es bits*len(bounds), .tolist() es para poner los numeros en una lista
+#en el rango pop_size, osea cada lista es un individuo, pop contiene a todos los individuos codificados
+
+#Programa principal
+best_fitness=[]
+for gen in range(iteration): #para el rango de las iteraciones 
+    offspring=crossover(pop,crossover_rate) #crossover
+    offspring=mutation(offspring,mutation_rate) #mutacion
+    for s in offspring:
+        pop.append(s) #se agrega s a los caracteres de la poblacion
+    real_chromosome=[decoding(bounds,bits,p) for p in pop]
+    fitness=[objective_function(d) for d in real_chromosome] #valor de fitness
+    
+    index =np.argmax(fitness)
+    current_best=pop[index]
+    best_fitness.append(1/max(fitness)-1)
+    pop=selection(pop,fitness,pop_size)
+
+fig=plt.figure()
+plt.plot(best_fitness)
+fig.suptitle('Evolución del mejor cromosoma')
+plt.xlabel('Iteración')
+plt.ylabel('Valor de la función')
+print('Valor MIN: ',min(best_fitness))
+print("Solución optima (x,y): ",decoding(bounds,bits,current_best))
